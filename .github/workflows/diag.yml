@@ -1,0 +1,27 @@
+name: diag
+run-name: diag
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the token secrets (prints lengths and status codes only)
+        env:
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+          RUNNER_TOKENS: ${{ secrets.RUNNER_TOKENS }}
+        run: |
+          check() {
+            local t="$1" label="$2"
+            printf '%s: length=%s prefix_ok=%s has_ws=%s non_printable=%s\n' "$label" "${#t}" \
+              "$([[ "$t" == github_pat_* || "$t" == ghp_* ]] && echo yes || echo no)" \
+              "$([[ "$t" =~ [[:space:]] ]] && echo yes || echo no)" \
+              "$(printf '%s' "$t" | LC_ALL=C tr -d '[:print:]' | wc -c | tr -d ' ')"
+            for r in runner-scratch-store agent-harness-sandbox; do
+              printf '  %s status=%s\n' "$r" "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $t" "https://api.github.com/repos/shah21/$r")"
+            done
+          }
+          check "$STORE_TOKEN" STORE_TOKEN
+          check "$(jq -r '.shah21[0] // empty' <<<"$RUNNER_TOKENS")" RUNNER_TOKENS
