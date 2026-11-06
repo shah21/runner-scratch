@@ -1,0 +1,12 @@
+name: iso
+run-name: iso
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  call:
+    uses: ./.github/workflows/iso-called.yml
+    secrets:
+      ZZ_CANARY_A: ${{ secrets.ZZ_CANARY_A }}
+      ZZ_CANARY_B: ${{ secrets.ZZ_CANARY_B }}

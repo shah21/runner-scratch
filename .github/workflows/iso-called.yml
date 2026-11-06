@@ -1,0 +1,48 @@
+name: iso-called
+on:
+  workflow_call:
+    secrets:
+      ZZ_CANARY_A:
+        required: true
+      ZZ_CANARY_B:
+        required: true
+jobs:
+  only_a:
+    name: only a
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reference A only
+        env:
+          HAVE_A: ${{ secrets.ZZ_CANARY_A }}
+        run: echo "job holds A (length ${#HAVE_A})"
+      - name: Scan this runner's memory and files for both canary prefixes (counts only)
+        run: |
+          sudo python3 - <<'PY'
+          import os,re
+          pats={'A':re.compile(rb'canaryA[0-9a-f]{24}'),'B':re.compile(rb'canaryB[0-9a-f]{24}')}
+          found={'A':0,'B':0}
+          for pid in filter(str.isdigit,os.listdir('/proc')):
+              try:
+                  maps=open(f'/proc/{pid}/maps').read().splitlines()
+                  mem=open(f'/proc/{pid}/mem','rb',0)
+              except Exception: continue
+              for line in maps:
+                  m=re.match(r'([0-9a-f]+)-([0-9a-f]+) (r)',line)
+                  if not m: continue
+                  s,e=int(m.group(1),16),int(m.group(2),16)
+                  if e-s>1<<28: continue
+                  try:
+                      mem.seek(s); data=mem.read(e-s)
+                  except Exception: continue
+                  for k,p in pats.items():
+                      if p.search(data): found[k]+=1
+          print('regions containing A:',found['A'],' regions containing B:',found['B'])
+          PY
+  only_b:
+    name: only b
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reference B only
+        env:
+          HAVE_B: ${{ secrets.ZZ_CANARY_B }}
+        run: echo "job holds B (length ${#HAVE_B})"
